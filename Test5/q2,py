@@ -1,0 +1,193 @@
+import sqlite3
+import heapq
+
+
+# -----------------------------------
+# 1. Patient Class
+# -----------------------------------
+
+class Patient:
+    def __init__(self, patient_id, name, age, priority):
+        self.patient_id = patient_id
+        self.name = name
+        self.age = age
+        self.priority = priority
+
+    def display(self):
+        print(
+            self.patient_id,
+            self.name,
+            self.age,
+            self.priority
+        )
+
+
+# -----------------------------------
+# 2. Connect to SQLite Database
+# -----------------------------------
+
+conn = sqlite3.connect("hospital.db")
+
+cursor = conn.cursor()
+
+
+# -----------------------------------
+# 3. Create Patients Table
+# -----------------------------------
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS patients (
+    patient_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INTEGER,
+    priority INTEGER,
+    status TEXT
+)
+""")
+
+
+# -----------------------------------
+# 4. Insert Sample Patients
+# -----------------------------------
+
+patients = [
+    (101, "Rahul", 45, 2, "Waiting"),
+    (102, "Priya", 30, 1, "Waiting"),
+    (103, "Aman", 60, 3, "Waiting"),
+    (104, "Neha", 25, 1, "Waiting"),
+    (105, "Rohit", 50, 2, "Waiting")
+]
+
+cursor.executemany("""
+INSERT OR IGNORE INTO patients
+(patient_id, name, age, priority, status)
+VALUES (?, ?, ?, ?, ?)
+""", patients)
+
+conn.commit()
+
+
+# -----------------------------------
+# 5. Fetch Waiting Patients
+# -----------------------------------
+
+cursor.execute("""
+SELECT patient_id, name, age, priority
+FROM patients
+WHERE status = 'Waiting'
+""")
+
+rows = cursor.fetchall()
+
+
+# -----------------------------------
+# 6. Store as Python Objects
+# -----------------------------------
+
+patient_objects = []
+
+for row in rows:
+
+    patient = Patient(
+        row[0],
+        row[1],
+        row[2],
+        row[3]
+    )
+
+    patient_objects.append(patient)
+
+
+# -----------------------------------
+# 7. Create Priority Queue
+# -----------------------------------
+
+priority_queue = []
+
+for patient in patient_objects:
+
+    heapq.heappush(
+        priority_queue,
+        (
+            patient.priority,
+            patient.patient_id,
+            patient
+        )
+    )
+
+
+# -----------------------------------
+# 8. Display Current Patient Queue
+# -----------------------------------
+
+print("\nCurrent Patient Queue:")
+
+for priority, patient_id, patient in sorted(priority_queue):
+    patient.display()
+
+
+# -----------------------------------
+# 9. Attend Highest Priority Patient
+# -----------------------------------
+
+if priority_queue:
+
+    priority, patient_id, attended_patient = heapq.heappop(
+        priority_queue
+    )
+
+    print("\nPatient being attended:")
+
+    attended_patient.display()
+
+
+    # -----------------------------------
+    # 10. Update Database
+    # -----------------------------------
+
+    cursor.execute("""
+    UPDATE patients
+    SET status = 'Attended'
+    WHERE patient_id = ?
+    """, (attended_patient.patient_id,))
+
+    conn.commit()
+
+    print("\nPatient status updated successfully.")
+
+
+# -----------------------------------
+# 11. Display Remaining Patients
+# -----------------------------------
+
+cursor.execute("""
+SELECT patient_id, name, age, priority
+FROM patients
+WHERE status = 'Waiting'
+ORDER BY priority ASC
+""")
+
+remaining_patients = cursor.fetchall()
+
+print("\nRemaining Patients:")
+
+if remaining_patients:
+
+    for patient in remaining_patients:
+        print(
+            patient[0],
+            patient[1],
+            patient[2],
+            patient[3]
+        )
+
+else:
+
+    print("No patients remaining.")
+
+
+# -----------------------------------
+# 12. Close Database
+# -----------------------------------
+
+conn.close()
